@@ -2,7 +2,12 @@ from datetime import datetime
 from decimal import Decimal
 
 import pytest
-from backend.src.modules.idea_a.workflow import (
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+from .planner import BANGKOK, Fruit, StockItem, StockSnapshot
+from .restock_router import restock_router
+from .workflow import (
     Dashboard,
     Draft,
     InvalidItems,
@@ -13,11 +18,6 @@ from backend.src.modules.idea_a.workflow import (
     PlanNotFound,
     StalePlan,
 )
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
-from backend.src.modules.idea_a.planner import BANGKOK, Fruit, StockItem, StockSnapshot
-from backend.src.modules.idea_a.restock_router import restock_router
 
 PREFIX = "/api/ideas/idea-a"
 NOW = datetime(2026, 11, 21, 15, 30, tzinfo=BANGKOK)

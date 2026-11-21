@@ -3,7 +3,13 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Any, Protocol, Self
 
-from backend.src.modules.idea_a.workflow import (
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
+from fastapi.routing import APIRoute
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
+
+from .planner import StockItem, StockSnapshot
+from .workflow import (
     Dashboard,
     InvalidItems,
     MissingInputs,
@@ -11,12 +17,6 @@ from backend.src.modules.idea_a.workflow import (
     PlanNotFound,
     StalePlan,
 )
-from fastapi import APIRouter, HTTPException, Request, Response
-from fastapi.exceptions import RequestValidationError
-from fastapi.routing import APIRoute
-from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, model_validator
-
-from backend.src.modules.idea_a.planner import StockItem, StockSnapshot
 
 
 class RestockService(Protocol):

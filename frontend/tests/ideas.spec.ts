@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
-import { defaultIdeaId, demoIdeas, ideaPath } from '../frontend/src/ideas/registry';
+import { defaultIdeaId, demoIdeas, ideaPath } from '../src/ideas/registry';
 
 test('root opens the configured default demo', async ({ page }) => {
   await page.goto('/');
@@ -38,6 +38,8 @@ test('switching ideas keeps newly created records isolated', async ({ page, requ
     await expect(switcher).toHaveValue('idea-a');
     await expect(record).toBeVisible();
   } finally {
-    execFileSync('uv', ['run', '--locked', 'python', '-m', 'backend.src.testing.records', title]);
+    execFileSync('uv', ['run', '--locked', 'python', '-m', 'backend.src.testing.records', title], {
+      cwd: new URL('../../', import.meta.url),
+    });
   }
 });

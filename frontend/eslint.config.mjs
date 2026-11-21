@@ -5,8 +5,4 @@ export default tseslint.config(
   { ignores: ['**/dist/**', 'playwright-report/**', 'test-results/**'] },
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
-  {
-    files: ['scripts/*.mjs'],
-    languageOptions: { globals: { console: 'readonly', process: 'readonly' } },
-  },
 );

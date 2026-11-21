@@ -21,14 +21,11 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v6
-        with:
-          node-version-file: .nvmrc
       - id: scope
         env:
           BASE: ${{ github.event.pull_request.base.sha }}
           HEAD: ${{ github.event.pull_request.head.sha }}
-        run: node scripts/ci-plan.mjs "$BASE" "$HEAD"
+        run: python3 -m scripts.ci_plan "$BASE" "$HEAD"
 
   ideas:
     needs: plan
@@ -44,11 +41,13 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --locked
-      - run: npm ci
+      - run: npm --prefix frontend ci
       - run: make db migrate
       - run: npx playwright install --with-deps chromium
+        working-directory: frontend
       - run: make test-idea
         env:
           IDEA: ${{ matrix.idea }}
@@ -63,13 +62,15 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+          cache-dependency-path: frontend/package-lock.json
       - uses: astral-sh/setup-uv@v7
       - run: uv sync --locked
-      - run: npm ci
+      - run: npm --prefix frontend ci
       - run: make quality
       - run: make db migrate
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:web -- tests/
+        working-directory: frontend
+      - run: npm --prefix frontend run test:web -- tests/
       - if: github.event_name == 'push'
         run: make build
 

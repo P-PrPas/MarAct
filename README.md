@@ -1,5 +1,7 @@
 # MarAct
 
+Python backend dependencies live in `pyproject.toml` and `uv.lock`. The React frontend, its TypeScript config, and its npm dependencies live under `frontend/`.
+
 A modular monolith starter for comparing hackathon ideas in one app. The React and Vite frontend switches ideas by URL. One Python FastAPI backend runs both modules against PostgreSQL, with a separate set of tables for each idea.
 
 ## Local setup
@@ -20,11 +22,12 @@ Open [MarAct on port 5173](http://127.0.0.1:5173). The first visit opens Idea A.
 | `make migrate` | Apply pending migrations to `DATABASE_URL`. |
 | `make seed IDEA=idea-b` | Insert that idea’s fixtures once. |
 | `make test-idea IDEA=idea-a` | Run the idea’s API and browser suites. |
+| `make test-api` | Run the Python API tests with PostgreSQL. |
 | `make check` | Run lint, type checks, all idea suites, and the cross-idea browser smoke tests. |
 | `make build` | Compile-check Python and build the frontend. Run `make start` to serve them together. |
 | `make doctor` | Print runtime and Docker versions and check Docker connectivity. |
 
-Before the first browser test, run `npx playwright install chromium`. The API and smoke tests use `DATABASE_URL`, so initialize the database first. Browser tests use port 5174 and API port 3001 by default. Keep these ports free, and set a distinct `DB_PORT` and `DATABASE_URL` when running database environments in parallel.
+Before the first browser test, run `cd frontend && npx playwright install chromium` from the repo root. The API and smoke tests use `DATABASE_URL`, so initialize the database first. Browser tests use port 5174 and API port 3001 by default. Keep these ports free, and set a distinct `DB_PORT` and `DATABASE_URL` when running database environments in parallel.
 
 ## Add an idea
 

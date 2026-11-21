@@ -1,8 +1,10 @@
 import argparse
+from datetime import datetime
 from pathlib import Path
 
 import psycopg
 
+from backend.db.seeds.idea_a import BANGKOK, seed_demo
 from backend.src.shared.db import database_url
 
 DB = Path(__file__).resolve().parent
@@ -35,6 +37,14 @@ def seed(idea: str | None) -> None:
             with connection.transaction():
                 for path in sorted(directories[idea_id].glob("*.sql")):
                     connection.execute(path.read_text(), prepare=False)
+                if idea_id == "idea-a":
+                    schema = connection.execute(
+                        "SELECT to_regclass('idea_a_cafes')"
+                    ).fetchone()
+                    if schema and schema[0] is not None:
+                        seed_demo(connection, datetime.now(BANGKOK).date())
+                    else:
+                        print("Skipped Idea A restock fixtures because the schema is pending.")
             print(f"Loaded {idea_id} fixtures")
 
 

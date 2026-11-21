@@ -188,13 +188,15 @@
   background: var(--color-ash);
 }
 
-.idea-a-dashboard :is(.primary-action, div > button),
+.idea-a-dashboard .primary-action,
+.idea-a-dashboard > div > button,
 .idea-a-dashboard:not(:has(.primary-action)) .run-plan {
   color: var(--color-paper);
   background: var(--color-obsidian);
 }
 
-.idea-a-dashboard :is(.primary-action, div > button):not(:disabled):hover,
+.idea-a-dashboard .primary-action:not(:disabled):hover,
+.idea-a-dashboard > div > button:not(:disabled):hover,
 .idea-a-dashboard:not(:has(.primary-action)) .run-plan:not(:disabled):hover {
   background: #333;
 }

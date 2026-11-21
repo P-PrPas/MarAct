@@ -8,11 +8,11 @@ if (!ideaIds.includes(id)) {
 }
 
 const commands = [
-  ['--import', 'tsx', '--test', `backend/src/modules/${id}/**/*.test.ts`],
-  ['node_modules/@playwright/test/cli.js', 'test', `frontend/src/ideas/${id}/`],
+  ['uv', 'run', '--locked', 'python', '-m', 'pytest', `backend/src/modules/${id.replaceAll('-', '_')}`],
+  [process.execPath, 'node_modules/@playwright/test/cli.js', 'test', `frontend/src/ideas/${id}/`],
 ];
-for (const args of commands) {
-  const result = spawnSync(process.execPath, args, { stdio: 'inherit' });
+for (const [command, ...args] of commands) {
+  const result = spawnSync(command, args, { stdio: 'inherit' });
   if (result.error) throw result.error;
   if (result.status !== 0) process.exit(result.status ?? 1);
 }

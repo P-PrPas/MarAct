@@ -1,12 +1,22 @@
-.PHONY: init dev migrate seed test-idea check build doctor db .env
+.PHONY: init dev dev-api start migrate seed test-idea check quality build doctor db .env
+
+export IDEA
 
 init: .env
 	npm ci
-	$(MAKE) db migrate
-	npm run seed -- --all
+	uv sync --locked
+	$(MAKE) db
+	$(MAKE) migrate
+	uv run --locked python -m backend.db.manage seed --all
 
 dev: db
 	npm run dev
+
+dev-api: .env
+	uv run --locked python -m backend.src.app.server --reload
+
+start: .env
+	uv run --locked --no-dev python -m backend.src.app.server
 
 .env:
 	@test -f .env || cp .env.example .env
@@ -15,23 +25,32 @@ db: .env
 	docker compose up -d --wait db
 
 migrate: .env
-	npm run migrate
+	uv run --locked --no-dev python -m backend.db.manage migrate
 
 seed: .env
-	@test -n "$(IDEA)" || { echo "Usage: make seed IDEA=idea-b"; exit 1; }
-	npm run seed -- "$(IDEA)"
+	@test -n "$$IDEA" || { echo "Usage: make seed IDEA=idea-b"; exit 1; }
+	uv run --locked --no-dev python -m backend.db.manage seed --idea "$$IDEA"
 
 test-idea: .env
-	node --env-file-if-exists=.env scripts/test-idea.mjs "$(IDEA)"
+	node scripts/test-idea.mjs "$$IDEA"
 
-check: .env
-	npm run check
+quality:
+	uv run --locked ruff check backend
+	uv run --locked mypy backend
+	npm run lint
+	npm run typecheck
+
+check: .env quality
+	uv run --locked python -m pytest
+	npm run test:web
 
 build:
+	uv run --locked python -m compileall -q backend
 	npm run build
 
 doctor:
 	node --version
 	npm --version
+	uv --version
 	docker compose version
 	docker info --format '{{.ServerVersion}}'

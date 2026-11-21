@@ -9,7 +9,8 @@ if (base) {
   const paths = execFileSync('git', ['diff', '--no-renames', '--name-only', '-z', `${base}...${head}`],
     { encoding: 'utf8' }).split('\0').filter(Boolean);
   for (const path of paths) {
-    const id = /^(?:frontend\/src\/ideas|backend\/src\/modules|backend\/db\/seeds)\/([^/]+)\//.exec(path)?.[1];
+    const owned = /^(?:frontend\/src\/ideas|backend\/src\/modules|backend\/db\/seeds)\/([^/]+)\//.exec(path)?.[1];
+    const id = path.startsWith('backend/src/modules/') ? owned?.replaceAll('_', '-') : owned;
     if (ideaIds.includes(id)) affected.add(id);
     else full = true;
   }

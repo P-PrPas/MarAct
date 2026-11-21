@@ -1,6 +1,6 @@
+import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
-import pg from 'pg';
 import { defaultIdeaId, demoIdeas, ideaPath } from '../frontend/src/ideas/registry';
 
 test('root opens the configured default demo', async ({ page }) => {
@@ -38,11 +38,6 @@ test('switching ideas keeps newly created records isolated', async ({ page, requ
     await expect(switcher).toHaveValue('idea-a');
     await expect(record).toBeVisible();
   } finally {
-    const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
-    try {
-      await pool.query('DELETE FROM idea_a_records WHERE title = $1', [title]);
-    } finally {
-      await pool.end();
-    }
+    execFileSync('uv', ['run', '--locked', 'python', '-m', 'backend.src.testing.records', title]);
   }
 });

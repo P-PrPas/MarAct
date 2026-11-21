@@ -13,9 +13,9 @@ export default defineConfig({
   use: { baseURL: `http://127.0.0.1:${webPort}` },
   webServer: [
     {
-      command: 'node --import tsx backend/src/app/server.ts',
+      command: 'uv run --locked python -m backend.src.app.server',
       url: `http://127.0.0.1:${apiPort}/api/health`,
-      env: { API_PORT: apiPort },
+      env: { API_PORT: apiPort, API_HOST: '127.0.0.1' },
     },
     {
       command: `npm run dev:web -- --port ${webPort}`,

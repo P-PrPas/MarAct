@@ -1,7 +1,5 @@
 import { useId, useRef, useState } from 'react';
 
-import './plan-review.css';
-
 type Fruit = {
   fruit_id: string;
   name: string;
@@ -82,9 +80,9 @@ export function PlanReview({ fruits, plan, loading = false, onRun }: PlanReviewP
   }
 
   return (
-    <section aria-labelledby={headingId}>
+    <section className="plan-review" aria-labelledby={headingId}>
       <h2 id={headingId}>Plan review</h2>
-      <button type="button" disabled={loading || pending} onClick={runCheck}>Run daily check</button>
+      <button className="run-plan" type="button" disabled={loading || pending} onClick={runCheck}>Run daily check</button>
       {loading && <p role="status">Loading the plan…</p>}
       {pending && <p role="status">Running the daily check…</p>}
       {error && <p role="alert">The daily check failed. Try again.</p>}
@@ -117,8 +115,12 @@ export function PlanReview({ fruits, plan, loading = false, onRun }: PlanReviewP
             {items.map((item) => (
               <li key={item.fruit_id}>
                 <h3>{fruitById.get(item.fruit_id)?.name ?? item.fruit_id}</h3>
-                {item.shortage && <p>Shortage risk</p>}
-                {item.surplus && <p>Surplus risk</p>}
+                {(item.shortage || item.surplus) && (
+                  <div className="plan-risks">
+                    {item.shortage && <span>Shortage risk</span>}
+                    {item.surplus && <span>Surplus risk</span>}
+                  </div>
+                )}
                 <p>Suggested order: {item.suggested_kg} kg</p>
                 <p>{item.explanation}</p>
               </li>

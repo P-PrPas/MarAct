@@ -117,7 +117,7 @@ function ConfirmationForm({ fruits, plan, draft, onConfirm }: OrderConfirmationP
           </label>
         ))}
         {!confirmed && (
-          <button type="submit" disabled={pending}>
+          <button className="primary-action" type="submit" disabled={pending}>
             {pending ? 'Confirming…' : 'Confirm order'}
           </button>
         )}

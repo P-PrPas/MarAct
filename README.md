@@ -10,16 +10,16 @@ Install Node.js 24, npm, Python 3.12–3.14, uv, Make, and Docker with the Compo
 
 ```sh
 make init
-make dev
+IDEA_A_SCHEDULER_ENABLED=1 make dev
 ```
 
-Open [MarAct on port 5173](http://127.0.0.1:5173). The first visit opens Idea A. Use the idea dropdown to compare it with Idea B. The starter API listens on port 3000 and Vite proxies `/api` requests. Adjust `.env` if local ports conflict. Keep `DB_PORT` and the port in `DATABASE_URL` in sync.
+Open [MarAct on port 5173](http://127.0.0.1:5173). The first visit opens the Idea A café restocking dashboard. Use the idea dropdown to compare it with Idea B. The starter API listens on port 3000 and Vite proxies `/api` requests. Adjust `.env` if local ports conflict. Keep `DB_PORT` and the port in `DATABASE_URL` in sync.
 
 | Command | Behavior |
 | --- | --- |
 | `make init` | Create `.env` if needed, install locked Python and Node dependencies, start PostgreSQL, apply migrations, and seed all demos. Safe to rerun. |
 | `make dev` | Start PostgreSQL and both development apps. |
-| `make migrate` | Apply pending migrations to `DATABASE_URL`. |
+| `make migrate` | Apply pending starter SQL and Alembic revisions to `DATABASE_URL`. |
 | `make seed IDEA=idea-b` | Insert that idea’s fixtures once. |
 | `make test-idea IDEA=idea-a` | Run the idea’s API and browser suites. |
 | `make test-api` | Run the Python API tests with PostgreSQL. |
@@ -27,14 +27,24 @@ Open [MarAct on port 5173](http://127.0.0.1:5173). The first visit opens Idea A.
 | `make build` | Compile-check Python and build the frontend. Run `make start` to serve them together. |
 | `make doctor` | Print runtime and Docker versions and check Docker connectivity. |
 
-Before the first browser test, run `cd frontend && npx playwright install chromium` from the repo root. The API and smoke tests use `DATABASE_URL`, so initialize the database first. Browser tests use port 5174 and API port 3001 by default. Keep these ports free, and set a distinct `DB_PORT` and `DATABASE_URL` when running database environments in parallel.
+Before the first browser test, run `cd frontend && npx playwright install chromium` from the repo root. API tests use `DATABASE_URL`. Browser tests create and remove a disposable PostgreSQL schema with fixed demo fixtures and a stubbed OpenAI transport. Browser tests use port 5174 and API port 3001 by default. Keep these ports free, and set a distinct `DB_PORT` and `DATABASE_URL` when running database environments in parallel.
+
+## Run the café demo
+
+1. Open Idea A and save the current stock. On a new database, the demo starts with 8 kg of mango on hand and 3 kg to use today.
+2. Click **Run daily check**. Mango starts with a 6 kg recommendation. Change it to 5 kg, confirm the order, and copy the supplier message.
+3. Reload to see the saved order. Running the check again for the same delivery preserves the confirmed order.
+
+The demo command above enables one scheduler in the API process. It runs the same check as the dashboard at 15:30 Asia/Bangkok. Set `IDEA_A_SCHEDULER_ENABLED=1` for just one API instance. To refresh the seven days of demo usage for the current Bangkok date, run `make seed IDEA=idea-a` and save today's stock in the dashboard.
+
+Optionally set `OPENAI_API_KEY` in `.env` for generated risk explanations. The default model is `gpt-6-luna`. Set `OPENAI_MODEL` to override it. The dashboard uses built-in explanations when the provider is unavailable.
 
 ## Add an idea
 
 1. Pick a stable lowercase ID such as `idea-c`. Create a screen and a `*.spec.ts` test under `frontend/src/ideas/idea-c/`.
 2. Register its label, status, and screen in [the idea registry](frontend/src/ideas/registry.ts). The screen URL is `/ideas/idea-c`.
 3. Create the module and its `test_*.py` test under `backend/src/modules/idea_c/`. Use underscores in the Python package name. Mount its router at `/api/ideas/idea-c` in [the backend app](backend/src/app/main.py).
-4. Coordinate the next migration number, add SQL under `backend/db/migrations/`, and prefix idea tables with `idea_c_`. Put repeatable fixtures under `backend/db/seeds/idea-c/` using stable unique seed keys.
+4. Coordinate the next Alembic revision under `backend/db/alembic/versions/` and prefix idea tables with `idea_c_`. Put repeatable fixtures under `backend/db/seeds/idea-c/` using stable unique seed keys.
 5. Run `make migrate`, `make seed IDEA=idea-c`, and `make test-idea IDEA=idea-c`. Record the addition in [CHANGELOG.md](CHANGELOG.md).
 
 A `draft` idea is available by direct link. A `demo` is also selectable. A `retired` idea’s page is unavailable. To promote an idea, set it to `demo`, update `defaultIdeaId`, keep the previous default at `demo`, and update the changelog. Preserve IDs and tables through promotion.

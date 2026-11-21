@@ -1,5 +1,3 @@
-import { execFileSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
 import { expect, test } from '@playwright/test';
 import { defaultIdeaId, demoIdeas, ideaPath } from '../src/ideas/registry';
 
@@ -10,36 +8,61 @@ test('root opens the configured default demo', async ({ page }) => {
   await expect(page.getByRole('option')).toHaveText(demoIdeas.map(({ label }) => label));
 });
 
-test('switching ideas keeps newly created records isolated', async ({ page, request }) => {
-  const title = `Smoke test ${randomUUID()}`;
+test('restocking saves and reloads a confirmed order without affecting Idea B', async ({ page, request }) => {
+  await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+  const ideaBRecords = '/api/ideas/idea-b/records';
+  const beforeB = await request.get(ideaBRecords);
+  expect(beforeB.ok()).toBeTruthy();
+  const records = await beforeB.json();
+
+  await page.goto('/ideas/idea-a');
+  const stock = page.getByLabel('Mango stock on hand (kg)');
+  await expect(stock).toHaveValue('8');
+  await stock.fill('8.25');
+  const saved = page.waitForResponse((response) =>
+    response.request().method() === 'PUT' && response.url().endsWith('/idea-a/stock'),
+  );
+  await page.getByRole('button', { name: 'Save stock' }).click();
+  expect((await saved).ok()).toBeTruthy();
+
+  await page.getByRole('button', { name: 'Run daily check' }).click();
+  const mango = page.getByRole('list', { name: 'Fruit recommendations' })
+    .getByRole('listitem').filter({ has: page.getByRole('heading', { name: 'Mango' }) });
+  await expect(mango).toContainText('Suggested order: 6 kg');
+  await expect(mango).toContainText(
+    'Some stock needs to be used today, and usable stock at delivery is below forecast.',
+  );
+  const quantity = page.getByLabel('Mango order quantity (kg)');
+  await expect(quantity).toHaveValue('6');
+  await quantity.fill('5');
+  await page.getByRole('button', { name: 'Confirm order' }).click();
+
+  const supplierMessage = page.getByRole('textbox', { name: 'Supplier message', exact: true });
+  await expect(supplierMessage).toHaveValue(/Mango.*5 kg/);
+  const message = await supplierMessage.inputValue();
+  await page.getByRole('button', { name: 'Copy supplier message' }).click();
+  await expect(page.getByText('Message copied.')).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(message);
+
+  await page.reload();
+  await expect(stock).toHaveValue('8.25');
+  await expect(quantity).toHaveValue('5');
+  await expect(supplierMessage).toHaveValue(message);
+  const rerun = page.waitForResponse((response) => response.url().endsWith('/idea-a/plans/run'));
+  await page.getByRole('button', { name: 'Run daily check' }).click();
+  expect((await rerun).ok()).toBeTruthy();
+  await expect(supplierMessage).toHaveValue(message);
+
   const switcher = page.getByRole('combobox', { name: 'Idea' });
-  const record = page.getByText(title, { exact: true });
-  try {
-    await page.goto('/ideas/idea-a');
-    await page.getByLabel('Record title').fill(title);
-    await page.getByRole('button', { name: 'Add record' }).click();
-    await expect(record).toBeVisible();
+  await switcher.selectOption('idea-b');
+  await expect(page).toHaveURL('/ideas/idea-b');
+  await expect(page.getByRole('heading', { name: 'Idea B' })).toBeVisible();
+  await expect(supplierMessage).toHaveCount(0);
+  const afterB = await request.get(ideaBRecords);
+  expect(afterB.ok()).toBeTruthy();
+  expect(await afterB.json()).toEqual(records);
 
-    const loadedB = page.waitForResponse((response) =>
-      response.url().endsWith('/api/ideas/idea-b/records') && response.ok(),
-    );
-    await switcher.selectOption('idea-b');
-    await loadedB;
-    await expect(page).toHaveURL('/ideas/idea-b');
-    await expect(page.getByRole('status')).toHaveCount(0);
-    await expect(record).toHaveCount(0);
-    const records = await (await request.get('/api/ideas/idea-b/records')).json();
-    expect(records.map((item: { title: string }) => item.title)).not.toContain(title);
-
-    await page.reload();
-    await expect(switcher).toHaveValue('idea-b');
-    await page.goBack();
-    await expect(page).toHaveURL('/ideas/idea-a');
-    await expect(switcher).toHaveValue('idea-a');
-    await expect(record).toBeVisible();
-  } finally {
-    execFileSync('uv', ['run', '--locked', 'python', '-m', 'backend.src.testing.records', title], {
-      cwd: new URL('../../', import.meta.url),
-    });
-  }
+  await page.goBack();
+  await expect(switcher).toHaveValue('idea-a');
+  await expect(supplierMessage).toHaveValue(message);
 });

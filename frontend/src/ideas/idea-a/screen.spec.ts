@@ -1,11 +1,17 @@
 import { expect, test } from '@playwright/test';
 
-test('Idea A displays its own records and selected idea', async ({ page }) => {
-  await page.route('**/api/ideas/idea-a/records', (route) =>
-    route.fulfill({ json: [{ id: 1, title: 'Idea A fixture' }] }),
+test('the dashboard guides the user when stock and usage are missing', async ({ page }) => {
+  await page.route('**/api/ideas/idea-a/plans/current', (route) =>
+    route.fulfill({ json: { fruits: [{ fruit_id: 'mango', name: 'Mango' }], stock: null, plan: null, draft: null } }),
   );
+  await page.route('**/api/ideas/idea-a/plans/run', (route) =>
+    route.fulfill({ status: 409, json: { detail: { code: 'missing_inputs', inputs: ['stock', 'usage_history'] } } }),
+  );
+
   await page.goto('/ideas/idea-a');
-  await expect(page.getByRole('heading', { name: 'Idea A' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Café restocking' })).toBeVisible();
   await expect(page.getByRole('combobox', { name: 'Idea' })).toHaveValue('idea-a');
-  await expect(page.getByText('Idea A fixture', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Run daily check' }).click();
+  await expect(page.getByRole('alert')).toContainText('Save a current stock snapshot.');
+  await expect(page.getByRole('alert')).toContainText('Add seven consecutive days of usage for each fruit.');
 });

@@ -14,7 +14,7 @@ test("agent handoff through checkout and cancellation", async ({ page }) => {
       "-X",
       "utf8",
       "-c",
-      "from backend.src.modules.idea_c.test_market import browser_lot; import sys; browser_lot(sys.argv[1])",
+      "from backend.src.modules.idea_c.test_market import browser_lot; import sys; browser_lot(sys.argv[1]); browser_lot(sys.argv[1]+'-unknown', None)",
       buyer,
     ],
     { cwd: root },
@@ -33,7 +33,15 @@ test("agent handoff through checkout and cancellation", async ({ page }) => {
           sort: "cost",
         }),
     );
-    const lot = page.locator("article").filter({ hasText: "สวนริมคลอง" });
+    const unknown = page
+      .locator("article")
+      .filter({ hasText: buyer + "-unknown" });
+    await expect(
+      unknown.getByRole("button", { name: "เพิ่มลงตะกร้า" }),
+    ).toBeDisabled();
+    const lot = page
+      .locator("article")
+      .filter({ has: page.getByRole("heading", { name: buyer, exact: true }) });
     await expect(lot).toContainText("960 บาท");
     await lot.getByRole("button", { name: "เพิ่มลงตะกร้า" }).click();
     await page.getByRole("button", { name: "ตะกร้า (1)", exact: true }).click();
@@ -58,7 +66,7 @@ test("agent handoff through checkout and cancellation", async ({ page }) => {
         "--locked",
         "python",
         "-c",
-        "from backend.src.modules.idea_c.test_market import cleanup; import sys; cleanup(sys.argv[1])",
+        "from backend.src.modules.idea_c.test_market import cleanup; import sys; cleanup(sys.argv[1]); cleanup(sys.argv[1]+'-unknown')",
         buyer,
       ],
       { cwd: root },

@@ -17,11 +17,14 @@ type Lot = {
   ends: string;
   transit: number;
   units: number;
+  requested_kg: number | null;
   total: number;
   misses: string[];
   preferred: boolean;
 };
-type Line = Pick<Lot, "id" | "name" | "unit" | "price"> & { units: number };
+type Line = Pick<Lot, "id" | "name" | "unit" | "price" | "requested_kg"> & {
+  units: number;
+};
 type Offer = { farm: string; lines: Line[]; freight: number; total: number };
 type Order = Offer & {
   id: string;
@@ -33,7 +36,7 @@ type Order = Offer & {
   expires: string;
   events: { action: string; note: string; at: string }[];
 };
-type Cart = { lot: Lot; units: number }[];
+type Cart = { lot: Lot; units: number; requested_kg: number | null }[];
 const labels: Record<string, string> = {
   pending: "รอสวนยืนยัน",
   expired: "หมดเวลายืนยัน",
@@ -166,9 +169,16 @@ export function IdeaC() {
     edit(
       found
         ? cart.map((i) =>
-            i === found ? { lot, units: i.units + lot.units } : i,
+            i === found
+              ? {
+                  lot,
+                  units: i.units + lot.units,
+                  requested_kg:
+                    (i.requested_kg ?? 0) + (lot.requested_kg ?? 0) || null,
+                }
+              : i,
           )
-        : [...cart, { lot, units: lot.units }],
+        : [...cart, { lot, units: lot.units, requested_kg: lot.requested_kg }],
     );
   }
   const fields = (
@@ -298,7 +308,14 @@ export function IdeaC() {
                 {l.kg ? "(" + Number(l.kg) * l.units + " กก.)" : ""} รวม{" "}
                 {money(l.total)}
               </strong>{" "}
-              <button disabled={l.stock < l.units} onClick={() => add(l)}>
+              <button
+                disabled={
+                  l.stock < l.units ||
+                  l.requested_kg !== (kg ? Number(kg) : null) ||
+                  (l.requested_kg !== null && !l.kg)
+                }
+                onClick={() => add(l)}
+              >
                 เพิ่มลงตะกร้า
               </button>
             </article>
@@ -362,6 +379,7 @@ export function IdeaC() {
                 const lines = selected.map((i) => ({
                   id: i.lot.id,
                   units: i.units,
+                  requested_kg: i.requested_kg,
                 }));
                 const before = selected.reduce(
                   (n, i) => n + i.units * i.lot.price,
@@ -463,7 +481,11 @@ export function IdeaC() {
                                 id: review.id,
                                 expected: review.offer,
                                 lines: review.offer.lines.map(
-                                  ({ id, units }) => ({ id, units }),
+                                  ({ id, units, requested_kg }) => ({
+                                    id,
+                                    units,
+                                    requested_kg,
+                                  }),
                                 ),
                                 postcode: review.postcode,
                                 arrival: review.arrival,

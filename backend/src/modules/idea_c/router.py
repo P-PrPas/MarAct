@@ -99,6 +99,7 @@ def session(body: Account, req: Request, response: Response):
 class Pick(BaseModel):
     id: Short
     units: Annotated[int, Field(gt=0, le=1000000)]
+    requested_kg: Annotated[int, Field(gt=0, le=1000000)] | None = None
 
 
 @router.post("/logout")
@@ -141,7 +142,7 @@ def reasons(lot, units, postcode, arrival):
 def lots(
     req: Request,
     q: str = "",
-    kg: Annotated[int, Field(ge=1, le=1000000)] = 1,
+    kg: Annotated[int, Field(ge=1, le=1000000)] | None = None,
     postcode: Postcode | None = None,
     arrival: date | None = None,
     sort: Literal["match", "cost", "date"] = "match",
@@ -156,15 +157,16 @@ def lots(
                 continue
             units = max(
                 lot["minimum"],
-                math.ceil(kg / lot["kg"]) if lot["kg"] else lot["minimum"],
+                math.ceil(kg / lot["kg"]) if kg and lot["kg"] else lot["minimum"],
             )
             misses = reasons(lot, units, postcode, arrival)
-            if not lot["kg"]:
+            if kg and not lot["kg"]:
                 misses.append("สวนยังไม่ระบุน้ำหนักต่อหน่วย")
             first = max(today(), lot["starts"]) + timedelta(days=lot["transit"])
             rows.append(
                 dict(
                     lot,
+                    requested_kg=kg,
                     units=units,
                     misses=misses,
                     earliest=first,
@@ -203,6 +205,12 @@ def quote(cur, basket):
         seen.add(pick.id)
         farm = lot["farm"]
         misses = reasons(lot, pick.units, basket.postcode, basket.arrival)
+        if lot["kg"] is None and (
+            pick.requested_kg is not None or "requested_kg" not in pick.model_fields_set
+        ):
+            misses.append("สวนยังไม่ระบุน้ำหนักต่อหน่วย กรุณาเลือกซื้อเป็นหน่วย")
+        elif pick.requested_kg and pick.units * lot["kg"] < pick.requested_kg:
+            misses.append("จำนวนหน่วยไม่ถึงน้ำหนักที่ต้องการ")
         if pick.units < lot["minimum"] or misses:
             raise HTTPException(409, " / ".join(misses) or "ต่ำกว่ายอดขั้นต่ำ")
         freight = max(freight, lot["freight"])
@@ -214,6 +222,11 @@ def quote(cur, basket):
                 "units": pick.units,
                 "price": lot["price"],
                 "kg": str(lot["kg"]) if lot["kg"] else None,
+                **(
+                    {"requested_kg": pick.requested_kg}
+                    if "requested_kg" in pick.model_fields_set
+                    else {}
+                ),
             }
         )
     return {
@@ -248,8 +261,11 @@ def checkout(body: Checkout, req: Request):
                 and existing["address"] == body.address
                 and existing["postcode"] == body.postcode
                 and existing["arrival"] == body.arrival
-                and [(i["id"], i["units"]) for i in existing["lines"]]
-                == [(p.id, p.units) for p in body.lines]
+                and [
+                    (i["id"], i["units"], i.get("requested_kg"))
+                    for i in existing["lines"]
+                ]
+                == [(p.id, p.units, p.requested_kg) for p in body.lines]
                 and all(
                     body.expected.get(k) == existing[k]
                     for k in ("lines", "total", "freight", "farm")
@@ -304,17 +320,22 @@ class Listing(BaseModel):
 
 @router.put("/lots/{lot_id}")
 def publish(
-    lot_id: Short, body: Listing, req: Request, previous_stock: int | None = None
+    lot_id: Short, body: Listing, req: Request, previous_version: int | None = None
 ):
     partner(req, body.farm)
     if body.ends < body.starts or body.farm.startswith("__"):
         raise HTTPException(422)
     fields = tuple(Listing.model_fields)
     with market(req) as cur:
-        cur.execute("SELECT farm,stock,unit,kg FROM idea_c_lots WHERE id=%s", (lot_id,))
+        cur.execute(
+            "SELECT farm,version,unit,kg FROM idea_c_lots WHERE id=%s FOR UPDATE",
+            (lot_id,),
+        )
         row = cur.fetchone()
-        if row and (row["farm"] != body.farm or previous_stock != row["stock"]):
-            raise HTTPException(409, "กรุณาโหลดจำนวนคงเหลือล่าสุด")
+        if (
+            row and (row["farm"] != body.farm or previous_version != row["version"])
+        ) or (not row and previous_version is not None):
+            raise HTTPException(409, "ข้อมูลล็อตเปลี่ยนแล้ว กรุณาโหลดข้อมูลล่าสุด")
         if row and (
             row["unit"] != body.unit
             or (float(row["kg"]) if row["kg"] is not None else None) != body.kg
@@ -325,10 +346,10 @@ def publish(
         updates = ",".join(f"{f}=EXCLUDED.{f}" for f in fields)
         cur.execute(
             f"INSERT INTO idea_c_lots(id,{columns}) VALUES ({placeholders}) "
-            f"ON CONFLICT(id) DO UPDATE SET {updates}",
+            f"ON CONFLICT(id) DO UPDATE SET {updates} RETURNING id, version",
             (lot_id, *body.model_dump().values()),
         )
-        return {"id": lot_id}
+        return cur.fetchone()
 
 
 @router.get("/partner/orders")

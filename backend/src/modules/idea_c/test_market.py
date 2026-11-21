@@ -52,14 +52,14 @@ def shop(monkeypatch):
             cleanup(unique)
 
 
-def browser_lot(unique):
+def browser_lot(unique, kg=1):
     with psycopg.connect(database_url()) as db:
         db.execute(
             """INSERT INTO idea_c_lots
             (id,farm,name,uses,unit,kg,price,minimum,stock,starts,ends,transit,postcodes,freight)
-            VALUES (%s,'สวนริมคลอง',%s,'smoothie','kg',1,48,1,30,current_date,
+            VALUES (%s,'สวนริมคลอง',%s,'smoothie','crate',%s,48,1,30,current_date,
                     current_date+14,1,ARRAY['10'],0)""",
-            (unique, unique),
+            (unique, unique, kg),
         )
 
 
@@ -124,6 +124,60 @@ def test_catalog_order_and_stock_race(shop):
         )
         assert response.is_success, response.text
     assert response.json()["refund"] == "details"
+
+
+def test_stale_freight_edit_preserves_new_price(shop):
+    client, key, headers = shop
+
+    def read():
+        return client.get(ROOT + "/lots", params={"q": key}).json()[0]
+
+    initial = read()
+    path = ROOT + "/lots/" + key
+    version = {"previous_version": initial["version"]}
+    changed = client.put(
+        path, params=version, headers=headers, json={**initial, "price": 300}
+    )
+    assert changed.json()["version"] == initial["version"] + 1
+    assert (
+        client.put(
+            path, params=version, headers=headers, json={**initial, "freight": 120}
+        ).status_code
+        == 409
+    )
+    current = read()
+    assert (current["price"], current["freight"]) == (300, 100)
+    retry = client.put(
+        path,
+        params={"previous_version": current["version"]},
+        headers=headers,
+        json={**current, "freight": 120},
+    )
+    assert retry.is_success
+    assert read()["total"] == 420
+
+
+def test_weight_intent_at_quote_and_checkout(shop):
+    client, key, _ = shop
+    body = basket(client, key)
+    for weight in (6, None):
+        with psycopg.connect(database_url()) as db:
+            db.execute("UPDATE idea_c_lots SET kg=%s WHERE id=%s", (weight, key))
+        lot = client.get(ROOT + "/lots", params={"q": key, "kg": 20}).json()[0]
+        assert lot["requested_kg"] == 20
+        line = {"id": key, "units": 1, "requested_kg": 20}
+        for endpoint in ("/quote", "/orders"):
+            response = client.post(ROOT + endpoint, json={**body, "lines": [line]})
+            assert response.status_code == 409
+            assert ("ไม่ถึงน้ำหนัก" if weight else "ไม่ระบุน้ำหนัก") in response.json()[
+                "detail"
+            ]
+    assert not client.get(ROOT + "/orders").json()["orders"]
+    unit_body = {**body, "lines": [{**line, "requested_kg": None}]}
+    offer = client.post(ROOT + "/quote", json=unit_body).json()
+    assert client.post(
+        ROOT + "/orders", json={**unit_body, "expected": offer}
+    ).is_success
 
 
 @pytest.mark.parametrize("end", ["cancel", "expire", "approve_cancel", "reject"])
